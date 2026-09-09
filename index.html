@@ -266,7 +266,6 @@
     margin-bottom: 20px;
   }
 
-  .status-badge.making { background: #fbe8cf; color: #93591a; }
   .status-badge.done { background: var(--sage); color: var(--white); }
 
   .confirm-summary {
@@ -324,24 +323,72 @@
     background: var(--white);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    padding: 14px 16px;
     margin-bottom: 10px;
+    overflow: hidden;
   }
 
-  .history-item-top {
+  .history-summary {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
+    gap: 10px;
+    width: 100%;
+    padding: 14px 16px;
+    background: none;
+    border: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .history-summary-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .history-item-no {
     font-weight: 700;
+    font-size: 16px;
+  }
+
+  .history-summary-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--brown-soft);
+  }
+
+  .history-amount {
+    font-weight: 700;
+    color: var(--brown);
     font-size: 15px;
   }
 
-  .history-item-detail {
-    font-size: 13px;
+  .history-chevron {
+    color: var(--brown-soft);
+    font-size: 12px;
+    transition: transform 0.15s ease;
+  }
+
+  .history-item.open .history-chevron { transform: rotate(180deg); }
+
+  .history-detail {
+    padding: 0 16px 14px;
+    font-size: 14px;
+    color: var(--brown);
+  }
+
+  .history-detail .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-top: 1px solid var(--cream-soft);
+  }
+
+  .history-detail .row span:last-child {
     color: var(--brown-soft);
   }
 
@@ -355,7 +402,6 @@
     color: var(--sage-dark);
   }
 
-  .history-status.making { background: #fbe8cf; color: #93591a; }
   .history-status.done { background: var(--sage); color: var(--white); }
 
   [hidden] { display: none !important; }
@@ -420,7 +466,8 @@
 
   const PICKUP_OPTIONS = ["12:30", "12:45", "13:00", "13:15"];
 
-  const STATUS_LABEL = { waiting: "대기중", making: "제조중", done: "완료" };
+  // 상태는 대기중 / 준비완료 둘뿐입니다. (예전 'making' 데이터는 대기중으로 표시)
+  const STATUS_LABEL = { waiting: "대기중", making: "대기중", done: "준비완료" };
   const HISTORY_KEY = "vineyardCafeOrderHistory";
   const HISTORY_LIMIT = 10;
 
@@ -561,20 +608,49 @@
     listEl.innerHTML = history
       .map((h) => {
         const status = statusMap.get(h.id) || "waiting";
-        const itemsSummary = h.items.map((it) => `${it.name} x${it.qty}`).join(", ");
+        const itemRows = h.items
+          .map((it) => {
+            const price = (MENU.find((m) => m.name === it.name)?.price || 0) * it.qty;
+            return `<div class="row"><span>${it.name} (${it.temp === "HOT" ? "Hot" : "Ice"}) x${it.qty}</span><span>$${price}</span></div>`;
+          })
+          .join("");
+
         return `
-          <div class="history-item">
-            <div class="history-item-top">
-              <span class="history-item-no">#${h.id}</span>
-              <span class="history-status ${status}">${STATUS_LABEL[status] || status}</span>
+          <div class="history-item" data-id="${h.id}">
+            <button type="button" class="history-summary">
+              <span class="history-summary-left">
+                <span class="history-item-no">#${h.id}</span>
+                <span class="history-status ${statusClass(status)}">${STATUS_LABEL[status] || status}</span>
+              </span>
+              <span class="history-summary-right">
+                <span class="history-amount">$${h.total}</span>
+                <span>${h.pickup_time}</span>
+                <span class="history-chevron">▼</span>
+              </span>
+            </button>
+            <div class="history-detail" hidden>
+              ${itemRows}
+              <div class="row"><span>주문 시각</span><span>${formatTime(h.created_at)}</span></div>
             </div>
-            <div class="history-item-detail">${itemsSummary} · $${h.total} · 픽업 ${h.pickup_time}</div>
           </div>
         `;
       })
       .join("");
 
+    listEl.querySelectorAll(".history-summary").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const item = btn.closest(".history-item");
+        const detail = item.querySelector(".history-detail");
+        detail.hidden = !detail.hidden;
+        item.classList.toggle("open", !detail.hidden);
+      });
+    });
+
     card.hidden = false;
+  }
+
+  function formatTime(iso) {
+    return new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
   }
 
   // ---- 주문 제출 ----
@@ -664,10 +740,15 @@
     subscribeToOrder(order.id);
   }
 
+  // 예전 'making' 데이터가 남아 있어도 대기중과 같은 색으로 보이게 합니다.
+  function statusClass(status) {
+    return status === "done" ? "done" : "waiting";
+  }
+
   function setStatusBadge(status) {
     const badge = document.getElementById("confirm-status");
     badge.textContent = STATUS_LABEL[status] || status;
-    badge.className = "status-badge " + status;
+    badge.className = "status-badge " + statusClass(status);
   }
 
   // 내 주문 하나만 실시간으로 상태 변화를 구독합니다.

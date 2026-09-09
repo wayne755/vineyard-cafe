@@ -49,18 +49,15 @@
     font-weight: 800;
   }
 
-  #conn-indicator {
-    font-size: 12px;
-    font-weight: 700;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: var(--sage-light);
-    color: var(--sage-dark);
-  }
-
-  #conn-indicator.offline {
+  /* 평소에는 숨겨두고, 연결이 끊겼을 때만 경고를 띄웁니다. */
+  #conn-warning {
     background: #f6d9d0;
     color: var(--error);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 10px 14px;
+    border-radius: 12px;
+    margin-bottom: 16px;
   }
 
   .summary-row {
@@ -84,7 +81,7 @@
     color: var(--sage-dark);
   }
 
-  .summary-card.making .num { color: var(--amber); }
+  .summary-card.ready .num { color: var(--amber); }
   .summary-card.money .num { color: var(--brown); }
 
   .summary-card .label {
@@ -202,11 +199,6 @@
     color: var(--sage-dark);
   }
 
-  .status-pill.making {
-    background: var(--amber-light);
-    color: #93591a;
-  }
-
   .action-btn {
     flex: 0 0 auto;
     padding: 14px 22px;
@@ -218,10 +210,6 @@
     color: var(--white);
     background: var(--sage-dark);
     cursor: pointer;
-  }
-
-  .action-btn.making-btn {
-    background: var(--amber);
   }
 
   .action-btn:active { opacity: 0.85; }
@@ -259,18 +247,37 @@
     border-top: 1px solid var(--cream-soft);
   }
 
+  .done-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
   .done-title {
     font-size: 13px;
     font-weight: 700;
     color: var(--brown-soft);
-    margin-bottom: 10px;
+  }
+
+  .clear-all-btn {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 14px;
+    min-height: 40px;
+    border: none;
+    border-radius: 10px;
+    background: none;
+    color: var(--brown-soft);
+    text-decoration: underline;
+    cursor: pointer;
   }
 
   .done-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     background: var(--white);
     border-radius: 12px;
     padding: 10px 14px;
@@ -278,6 +285,26 @@
     font-size: 14px;
     color: var(--brown-soft);
   }
+
+  .done-item .done-actions {
+    display: flex;
+    gap: 8px;
+    flex: 0 0 auto;
+  }
+
+  .dismiss-btn {
+    padding: 10px 16px;
+    min-height: 44px;
+    font-size: 14px;
+    font-weight: 700;
+    border: 1px solid var(--cream-soft);
+    border-radius: 10px;
+    background: var(--white);
+    color: var(--brown-soft);
+    cursor: pointer;
+  }
+
+  .dismiss-btn:active { background: var(--cream-soft); }
 
   .undo-btn {
     flex: 0 0 auto;
@@ -303,18 +330,19 @@
     <div class="name">Vineyard Cafe · Barista</div>
     <div id="header-controls">
       <button type="button" class="sound-btn" id="sound-toggle">🔔 알림음</button>
-      <div id="conn-indicator">실시간 연결됨</div>
     </div>
   </header>
+
+  <div id="conn-warning" hidden>연결이 끊겼습니다 · 5초마다 새로고침 중</div>
 
   <div class="summary-row">
     <div class="summary-card">
       <div class="num" id="waiting-count">0</div>
-      <div class="label">대기</div>
+      <div class="label">대기중</div>
     </div>
-    <div class="summary-card making">
-      <div class="num" id="making-count">0</div>
-      <div class="label">제조중</div>
+    <div class="summary-card ready">
+      <div class="num" id="done-count">0</div>
+      <div class="label">준비완료</div>
     </div>
     <div class="summary-card money">
       <div class="num" id="today-total">$0</div>
@@ -330,9 +358,12 @@
   <div class="order-list" id="order-list"></div>
   <div class="empty-state" id="empty-state" hidden>표시할 주문이 없습니다</div>
 
-  <!-- 실수로 완료를 눌렀을 때 되돌리기 위한 최근 완료 목록 -->
+  <!-- 실수로 눌렀을 때 되돌리기 위한 최근 준비완료 목록 -->
   <div class="done-section" id="done-section" hidden>
-    <div class="done-title">최근 완료</div>
+    <div class="done-head">
+      <div class="done-title">최근 준비완료</div>
+      <button type="button" class="clear-all-btn" id="clear-all-btn">전체 지우기</button>
+    </div>
     <div id="done-list"></div>
   </div>
 </div>
@@ -341,7 +372,7 @@
 <script src="config.js"></script>
 <script src="menu.js"></script>
 <script>
-  const STATUS_LABEL = { waiting: "대기중", making: "제조중" };
+  const DISMISSED_KEY = "baristaDismissedOrders";
   const TEMP_LABEL = { HOT: "Hot", ICE: "Ice" };
   const POLL_INTERVAL_MS = 5000;
   const TICK_INTERVAL_MS = 30000; // 경과 시간 라벨 갱신 주기
@@ -385,6 +416,29 @@
     if (knownIds.has(row.id)) return false;
     knownIds.add(row.id);
     return true;
+  }
+
+  // "최근 준비완료"에서 지운 주문 id. DB 기록은 그대로 두고 이 태블릿 화면에서만 숨깁니다.
+  // (anon 키에는 삭제 권한이 없고, 지우면 '오늘 합계' 정산도 틀어지기 때문)
+  function loadDismissed() {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY)) || []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  let dismissedIds = loadDismissed();
+
+  function saveDismissed() {
+    try {
+      // 오늘 주문에 해당하는 id만 남겨서 목록이 계속 커지지 않게 정리
+      const todayIds = new Set(orders.map((o) => o.id));
+      dismissedIds = new Set([...dismissedIds].filter((id) => todayIds.has(id)));
+      localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissedIds]));
+    } catch {
+      // localStorage를 못 쓰는 환경이면 이번 세션 동안만 유지됨
+    }
   }
 
   // ---- 데이터 가져오기 ----
@@ -518,15 +572,16 @@
   }
 
   function setConnected(isConnected) {
-    const el = document.getElementById("conn-indicator");
-    el.textContent = isConnected ? "실시간 연결됨" : "연결 끊김 · 5초마다 새로고침 중";
-    el.classList.toggle("offline", !isConnected);
+    document.getElementById("conn-warning").hidden = isConnected;
   }
 
   // ---- 상태 변경 ----
   async function advanceStatus(orderId, nextStatus) {
     const idx = orders.findIndex((o) => o.id === orderId);
     const prev = idx > -1 ? { ...orders[idx] } : null;
+
+    // 되돌린 주문은 다시 준비완료가 됐을 때 숨겨져 있으면 안 되므로 해제
+    if (nextStatus === "waiting" && dismissedIds.delete(orderId)) saveDismissed();
 
     // 낙관적 업데이트: 응답 기다리지 않고 화면 먼저 갱신
     if (idx > -1) {
@@ -554,19 +609,18 @@
   }
 
   function render() {
-    const active = orders.filter((o) => o.status === "waiting" || o.status === "making");
-    const waiting = active.filter((o) => o.status === "waiting");
-    const making = active.filter((o) => o.status === "making");
+    // 상태는 대기중 / 준비완료 둘뿐입니다. (예전 'making' 데이터가 남아 있으면 대기중으로 취급)
+    const waiting = orders.filter((o) => o.status !== "done");
     const done = orders.filter((o) => o.status === "done");
 
     document.getElementById("waiting-count").textContent = waiting.length;
-    document.getElementById("making-count").textContent = making.length;
+    document.getElementById("done-count").textContent = done.length;
     document.getElementById("today-total").textContent =
       "$" + orders.reduce((sum, o) => sum + orderTotal(o), 0);
 
     renderBatch(waiting);
-    renderList(active);
-    renderDone(done);
+    renderList(waiting);
+    renderDone(done.filter((o) => !dismissedIds.has(o.id)));
   }
 
   function renderBatch(waitingOrders) {
@@ -611,11 +665,6 @@
           .map((it) => `<span class="order-item-chip">${it.name} ${TEMP_LABEL[it.temp] || it.temp} x${it.qty}</span>`)
           .join("");
 
-        const isWaiting = o.status === "waiting";
-        const actionLabel = isWaiting ? "제조 시작" : "완료";
-        const nextStatus = isWaiting ? "making" : "done";
-        const btnClass = isWaiting ? "" : "making-btn";
-
         return `
           <div class="order-card">
             <div class="order-card-head">
@@ -631,8 +680,8 @@
             </div>
             <div class="order-items">${itemsHtml}</div>
             <div class="order-card-foot">
-              <span class="status-pill ${o.status}">${STATUS_LABEL[o.status]}</span>
-              <button class="action-btn ${btnClass}" data-id="${o.id}" data-next="${nextStatus}">${actionLabel}</button>
+              <span class="status-pill waiting">대기중</span>
+              <button class="action-btn" data-id="${o.id}">준비완료</button>
             </div>
           </div>
         `;
@@ -641,12 +690,12 @@
 
     listEl.querySelectorAll(".action-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
-        advanceStatus(Number(btn.dataset.id), btn.dataset.next);
+        advanceStatus(Number(btn.dataset.id), "done");
       });
     });
   }
 
-  // 완료 버튼을 실수로 눌렀을 때 되돌릴 수 있도록 최근 완료 5건을 남겨둡니다.
+  // 준비완료를 실수로 눌렀을 때 되돌릴 수 있도록 최근 5건을 남겨둡니다.
   function renderDone(doneOrders) {
     const section = document.getElementById("done-section");
     const listEl = document.getElementById("done-list");
@@ -663,7 +712,10 @@
         (o) => `
           <div class="done-item">
             <span>#${o.id} ${escapeHtml(o.customer_name)} · $${orderTotal(o)}</span>
-            <button class="undo-btn" data-id="${o.id}">되돌리기</button>
+            <div class="done-actions">
+              <button class="undo-btn" data-id="${o.id}">되돌리기</button>
+              <button class="dismiss-btn" data-id="${o.id}">지우기</button>
+            </div>
           </div>
         `
       )
@@ -671,12 +723,26 @@
 
     listEl.querySelectorAll(".undo-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
-        advanceStatus(Number(btn.dataset.id), "making");
+        advanceStatus(Number(btn.dataset.id), "waiting");
+      });
+    });
+
+    listEl.querySelectorAll(".dismiss-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        dismissedIds.add(Number(btn.dataset.id));
+        saveDismissed();
+        render();
       });
     });
 
     section.hidden = false;
   }
+
+  document.getElementById("clear-all-btn").addEventListener("click", () => {
+    orders.filter((o) => o.status === "done").forEach((o) => dismissedIds.add(o.id));
+    saveDismissed();
+    render();
+  });
 
   function escapeHtml(str) {
     const div = document.createElement("div");
