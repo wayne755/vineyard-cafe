@@ -13,8 +13,6 @@
     --sage: #7c8c6b;
     --sage-dark: #5f6e4f;
     --sage-light: #e4e9dc;
-    --amber: #c78a3a;
-    --amber-light: #fbe8cf;
     --error: #b3452f;
     --white: #fffdf9;
     --radius: 16px;
@@ -60,35 +58,20 @@
     margin-bottom: 16px;
   }
 
-  .summary-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+  .header-left {
+    display: flex;
+    align-items: center;
     gap: 12px;
-    margin-bottom: 16px;
   }
 
-  .summary-card {
-    background: var(--white);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 16px;
-    text-align: center;
-  }
-
-  .summary-card .num {
-    font-size: 32px;
+  .waiting-pill {
+    font-size: 14px;
     font-weight: 800;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--sage-light);
     color: var(--sage-dark);
-  }
-
-  /* 픽업 시간이 된 주문이 남아 있을 때만 붉게 강조합니다. */
-  .summary-card.urgent .num { color: var(--error); }
-
-  .summary-card .label {
-    font-size: 13px;
-    color: var(--brown-soft);
-    font-weight: 600;
-    margin-top: 2px;
+    white-space: nowrap;
   }
 
   .batch-card {
@@ -344,7 +327,10 @@
 <body>
 <div class="page">
   <header class="top">
-    <div class="name">Vineyard Cafe · Barista</div>
+    <div class="header-left">
+      <div class="name">Vineyard Cafe · Barista</div>
+      <span class="waiting-pill" id="waiting-pill">대기 0</span>
+    </div>
     <div id="header-controls">
       <a class="sales-link" href="sales.html">정산</a>
       <button type="button" class="sound-btn" id="sound-toggle">🔔</button>
@@ -352,17 +338,6 @@
   </header>
 
   <div id="conn-warning" hidden>연결이 끊겼습니다 · 5초마다 새로고침 중</div>
-
-  <div class="summary-row">
-    <div class="summary-card">
-      <div class="num" id="waiting-count">0</div>
-      <div class="label">대기중</div>
-    </div>
-    <div class="summary-card" id="due-card">
-      <div class="num" id="due-count">0</div>
-      <div class="label">지금 나갈 것</div>
-    </div>
-  </div>
 
   <div class="batch-card">
     <div class="title">묶어서 만들 음료 (대기 중)</div>
@@ -665,16 +640,25 @@
   // 빨리 나가야 하는 순서대로. 같은 시간대면 주문번호 순(먼저 주문한 사람 먼저).
   const byPickup = (a, b) => pickupMinutes(a) - pickupMinutes(b) || a.id - b.id;
 
+  function minutesSinceOrder(order) {
+    return Math.max(0, Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000));
+  }
+
   // ---- 렌더링 ----
   // 미리 주문받는 방식이라 "주문한 지 몇 분"보다 "픽업 시간까지 몇 분"이 실제로 쓸모 있습니다.
+  // 다만 이미 지난 시간대를 골라 주문했더라도(예: 13시에 12:30 선택) 방금 들어온 주문이
+  // "30분 지남"으로 보이면 안 되므로, 지연 시간은 주문 접수 시각부터로 제한합니다.
   function pickupLabel(order) {
+    const sinceOrder = minutesSinceOrder(order);
     const mins = pickupMinutes(order);
-    if (mins < 0) return "지금";
 
-    const diff = nowMinutes() - mins;
-    if (diff >= 1) return `${diff}분 지남`;
-    if (diff >= 0) return "지금";
-    return `${-diff}분 후`;
+    if (mins >= 0) {
+      const untilPickup = mins - nowMinutes();
+      if (untilPickup > 0) return `${untilPickup}분 후`;
+    }
+
+    const late = mins < 0 ? sinceOrder : Math.min(sinceOrder, nowMinutes() - mins);
+    return late < 1 ? "지금" : `${late}분 지남`;
   }
 
   function render() {
@@ -682,10 +666,7 @@
     const waiting = orders.filter((o) => o.status !== "done");
     const done = orders.filter((o) => o.status === "done");
 
-    const due = waiting.filter(isPickupDue);
-    document.getElementById("waiting-count").textContent = waiting.length;
-    document.getElementById("due-count").textContent = due.length;
-    document.getElementById("due-card").classList.toggle("urgent", due.length > 0);
+    document.getElementById("waiting-pill").textContent = `대기 ${waiting.length}`;
 
     renderBatch(waiting);
     renderList([...waiting].sort(byPickup));

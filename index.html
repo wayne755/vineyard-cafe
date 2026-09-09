@@ -521,7 +521,19 @@
   // ---- 상태 ----
   const itemState = {}; // { [menuId]: { temp: 'HOT'|'ICE', qty: number } }
   MENU.forEach((m) => (itemState[m.id] = { temp: "HOT", qty: 0 }));
-  let selectedPickup = PICKUP_OPTIONS[0];
+  // 이미 지난 시간대가 기본으로 선택돼 있으면 안 되므로, 아직 오지 않은 가장 이른 시간을 고릅니다.
+  function defaultPickupIndex() {
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const idx = PICKUP_OPTIONS.findIndex((label) => {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(label);
+      return m && Number(m[1]) * 60 + Number(m[2]) >= nowMins;
+    });
+    return idx === -1 ? PICKUP_OPTIONS.length - 1 : idx;
+  }
+
+  const defaultPickup = defaultPickupIndex();
+  let selectedPickup = PICKUP_OPTIONS[defaultPickup];
   let realtimeChannel = null;
 
   // ---- 메뉴 렌더 ----
@@ -580,7 +592,7 @@
   PICKUP_OPTIONS.forEach((label, i) => {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "pickup-btn" + (i === 0 ? " active" : "");
+    btn.className = "pickup-btn" + (i === defaultPickup ? " active" : "");
     btn.textContent = label;
     btn.addEventListener("click", () => {
       selectedPickup = label;
