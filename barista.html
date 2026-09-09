@@ -62,7 +62,7 @@
 
   .summary-row {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
     margin-bottom: 16px;
   }
@@ -82,7 +82,6 @@
   }
 
   .summary-card.ready .num { color: var(--amber); }
-  .summary-card.money .num { color: var(--brown); }
 
   .summary-card .label {
     font-size: 13px;
@@ -356,10 +355,6 @@
       <div class="num" id="done-count">0</div>
       <div class="label">준비완료</div>
     </div>
-    <div class="summary-card money">
-      <div class="num" id="today-total">$0</div>
-      <div class="label">오늘 합계</div>
-    </div>
   </div>
 
   <div class="batch-card">
@@ -535,8 +530,34 @@
     if (audioCtx.state === "suspended") audioCtx.resume();
   }
 
-  document.addEventListener("click", unlockAudio);
-  document.addEventListener("touchstart", unlockAudio);
+  // ---- 태블릿 화면이 예배·운영 중에 꺼지지 않도록 ----
+  // 브라우저가 지원할 때만 동작하며, 실패해도 앱 사용에는 지장이 없습니다.
+  let wakeLock = null;
+
+  async function keepScreenAwake() {
+    if (!("wakeLock" in navigator) || wakeLock) return;
+    try {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => {
+        wakeLock = null;
+      });
+    } catch {
+      // 배터리 절약 모드 등으로 거부될 수 있습니다. 그럴 땐 태블릿 설정에서 자동 잠금을 꺼주세요.
+    }
+  }
+
+  // 다른 앱에 갔다가 돌아오면 잠금이 풀려 있으므로 다시 요청합니다.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") keepScreenAwake();
+  });
+
+  function handleUserGesture() {
+    unlockAudio();
+    keepScreenAwake();
+  }
+
+  document.addEventListener("click", handleUserGesture);
+  document.addEventListener("touchstart", handleUserGesture);
 
   function playChime() {
     if (!soundOn || !audioCtx) return;
@@ -630,8 +651,6 @@
 
     document.getElementById("waiting-count").textContent = waiting.length;
     document.getElementById("done-count").textContent = done.length;
-    document.getElementById("today-total").textContent =
-      "$" + orders.reduce((sum, o) => sum + orderTotal(o), 0);
 
     renderBatch(waiting);
     renderList(waiting);
@@ -766,6 +785,7 @@
   }
 
   // ---- 시작 ----
+  keepScreenAwake();
   fetchOrders();
   subscribeRealtime();
   setInterval(render, TICK_INTERVAL_MS); // 경과 시간 라벨만 주기적으로 갱신
