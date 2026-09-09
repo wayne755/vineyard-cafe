@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Vineyard Cafe</title>
+<style>
+  :root {
+    --cream: #f7f2e9;
+    --cream-soft: #efe8d9;
+    --brown: #3e2b22;
+    --brown-soft: #6b564a;
+    --sage: #7c8c6b;
+    --sage-dark: #5f6e4f;
+    --sage-light: #e4e9dc;
+    --error: #b3452f;
+    --white: #fffdf9;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(62, 43, 34, 0.08);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--cream);
+    color: var(--brown);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+
+  .page {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 28px 20px 60px;
+  }
+
+  header.brand {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  header.brand .name {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--brown);
+  }
+
+  header.brand .tagline {
+    margin-top: 6px;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--sage-dark);
+    font-weight: 600;
+  }
+
+  section {
+    margin-bottom: 28px;
+  }
+
+  label.section-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--brown);
+    margin-bottom: 10px;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 14px 16px;
+    font-size: 16px;
+    border: 1px solid var(--cream-soft);
+    background: var(--white);
+    border-radius: var(--radius);
+    color: var(--brown);
+  }
+
+  input[type="text"]:focus {
+    outline: 2px solid var(--sage);
+    outline-offset: 1px;
+  }
+
+  .error-text {
+    color: var(--error);
+    font-size: 13px;
+    margin-top: 6px;
+    display: none;
+  }
+
+  .error-text.show { display: block; }
+
+  input.invalid, .menu-item.invalid {
+    outline: 2px solid var(--error);
+    outline-offset: 1px;
+    border-radius: var(--radius);
+  }
+
+  .menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .menu-item {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+
+  .menu-item-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+
+  .menu-item-name {
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .menu-item-price {
+    font-size: 14px;
+    color: var(--brown-soft);
+  }
+
+  .menu-item-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .temp-toggle {
+    display: flex;
+    background: var(--cream-soft);
+    border-radius: 10px;
+    padding: 3px;
+  }
+
+  .temp-btn {
+    border: none;
+    background: transparent;
+    padding: 8px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--brown-soft);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .temp-btn.active {
+    background: var(--sage);
+    color: var(--white);
+  }
+
+  .stepper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .stepper button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--cream-soft);
+    background: var(--white);
+    font-size: 18px;
+    color: var(--brown);
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .stepper button:active { background: var(--sage-light); }
+
+  .stepper .qty {
+    width: 28px;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .pickup-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .pickup-btn {
+    padding: 14px 8px;
+    border-radius: var(--radius);
+    border: 1px solid var(--cream-soft);
+    background: var(--white);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--brown);
+    cursor: pointer;
+  }
+
+  .pickup-btn.active {
+    background: var(--sage);
+    border-color: var(--sage);
+    color: var(--white);
+  }
+
+  .total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 4px;
+    font-size: 17px;
+    font-weight: 700;
+    border-top: 1px solid var(--cream-soft);
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--white);
+    background: var(--sage-dark);
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .submit-btn:active { opacity: 0.9; }
+  .submit-btn:disabled { background: var(--brown-soft); opacity: 0.6; cursor: not-allowed; }
+
+  /* 확인 카드 */
+  .confirm-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px 22px;
+    text-align: center;
+  }
+
+  .confirm-card .order-no-label {
+    font-size: 13px;
+    color: var(--brown-soft);
+    letter-spacing: 0.08em;
+  }
+
+  .confirm-card .order-no {
+    font-size: 44px;
+    font-weight: 800;
+    color: var(--sage-dark);
+    margin: 4px 0 18px;
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 8px 20px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 700;
+    background: var(--sage-light);
+    color: var(--sage-dark);
+    margin-bottom: 20px;
+  }
+
+  .status-badge.making { background: #fbe8cf; color: #93591a; }
+  .status-badge.done { background: var(--sage); color: var(--white); }
+
+  .confirm-summary {
+    text-align: left;
+    background: var(--cream-soft);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-size: 14px;
+    color: var(--brown);
+  }
+
+  .confirm-summary .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+  }
+
+  .confirm-summary .row.label {
+    color: var(--brown-soft);
+    font-weight: 600;
+    margin-top: 6px;
+  }
+
+  .new-order-btn {
+    margin-top: 20px;
+    background: none;
+    border: none;
+    color: var(--sage-dark);
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="brand">
+    <div class="name">Vineyard Cafe</div>
+    <div class="tagline">FAITH. COFFEE. COMMUNITY.</div>
+  </header>
+
+  <!-- 주문 폼 -->
+  <form id="order-form">
+    <section>
+      <label class="section-label" for="customer-name">이름</label>
+      <input type="text" id="customer-name" placeholder="주문하시는 분 성함" autocomplete="name" />
+      <div class="error-text" id="name-error">이름을 입력해 주세요.</div>
+    </section>
+
+    <section>
+      <label class="section-label">메뉴</label>
+      <div class="menu-list" id="menu-list"></div>
+      <div class="error-text" id="menu-error">메뉴를 1개 이상 선택해 주세요.</div>
+    </section>
+
+    <section>
+      <label class="section-label">픽업 희망 시간</label>
+      <div class="pickup-options" id="pickup-options"></div>
+    </section>
+
+    <div class="total-row">
+      <span>합계</span>
+      <span id="total-price">$0</span>
+    </div>
+
+    <button type="submit" class="submit-btn" id="submit-btn">주문하기</button>
+  </form>
+
+  <!-- 주문 확인 카드 -->
+  <div class="confirm-card" id="confirm-card" hidden>
+    <div class="order-no-label">주문번호</div>
+    <div class="order-no" id="confirm-order-no">-</div>
+    <div class="status-badge" id="confirm-status">대기중</div>
+    <div class="confirm-summary" id="confirm-summary"></div>
+    <button class="new-order-btn" id="new-order-btn">새 주문하기</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+  // ---- 설정 ----
+  const MENU = [
+    { id: "americano", name: "Americano", price: 2 },
+    { id: "vanilla-latte", name: "Vanilla Latte", price: 3 },
+    { id: "matcha", name: "Matcha", price: 3 },
+    { id: "hot-choco", name: "Hot Choco", price: 3 },
+    { id: "tea", name: "Assorted Hot Teas", price: 1 },
+  ];
+
+  const PICKUP_OPTIONS = ["예배 직후", "12:10", "12:20", "12:30"];
+
+  const STATUS_LABEL = { waiting: "대기중", making: "제조중", done: "완료" };
+
+  // ---- Supabase 클라이언트 ----
+  // window.supabase는 CDN 스크립트가 만든 전역 네임스페이스라, 우리가 만든 클라이언트는
+  // 이름이 겹치지 않도록 db 라는 변수에 담습니다.
+  const db = window.supabase.createClient(
+    window.SUPABASE_CONFIG.url,
+    window.SUPABASE_CONFIG.anonKey
+  );
+
+  // ---- 상태 ----
+  const itemState = {}; // { [menuId]: { temp: 'HOT'|'ICE', qty: number } }
+  MENU.forEach((m) => (itemState[m.id] = { temp: "HOT", qty: 0 }));
+  let selectedPickup = PICKUP_OPTIONS[0];
+  let realtimeChannel = null;
+
+  // ---- 메뉴 렌더 ----
+  const menuListEl = document.getElementById("menu-list");
+  MENU.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "menu-item";
+    row.dataset.id = item.id;
+    row.innerHTML = `
+      <div class="menu-item-top">
+        <span class="menu-item-name">${item.name}</span>
+        <span class="menu-item-price">$${item.price}</span>
+      </div>
+      <div class="menu-item-controls">
+        <div class="temp-toggle">
+          <button type="button" class="temp-btn active" data-temp="HOT">Hot</button>
+          <button type="button" class="temp-btn" data-temp="ICE">Ice</button>
+        </div>
+        <div class="stepper">
+          <button type="button" class="minus" aria-label="수량 감소">−</button>
+          <span class="qty">0</span>
+          <button type="button" class="plus" aria-label="수량 증가">+</button>
+        </div>
+      </div>
+    `;
+    menuListEl.appendChild(row);
+
+    const [hotBtn, iceBtn] = row.querySelectorAll(".temp-btn");
+    const minusBtn = row.querySelector(".minus");
+    const plusBtn = row.querySelector(".plus");
+    const qtyEl = row.querySelector(".qty");
+
+    hotBtn.addEventListener("click", () => setTemp(item.id, "HOT"));
+    iceBtn.addEventListener("click", () => setTemp(item.id, "ICE"));
+    minusBtn.addEventListener("click", () => changeQty(item.id, -1));
+    plusBtn.addEventListener("click", () => changeQty(item.id, 1));
+
+    function setTemp(id, temp) {
+      itemState[id].temp = temp;
+      hotBtn.classList.toggle("active", temp === "HOT");
+      iceBtn.classList.toggle("active", temp === "ICE");
+    }
+
+    function changeQty(id, delta) {
+      const next = Math.max(0, itemState[id].qty + delta);
+      itemState[id].qty = next;
+      qtyEl.textContent = next;
+      updateTotal();
+      row.classList.remove("invalid");
+      document.getElementById("menu-error").classList.remove("show");
+    }
+  });
+
+  // ---- 픽업 시간 렌더 ----
+  const pickupEl = document.getElementById("pickup-options");
+  PICKUP_OPTIONS.forEach((label, i) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pickup-btn" + (i === 0 ? " active" : "");
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      selectedPickup = label;
+      document.querySelectorAll(".pickup-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+    pickupEl.appendChild(btn);
+  });
+
+  // ---- 합계 ----
+  function updateTotal() {
+    const total = MENU.reduce((sum, m) => sum + m.price * itemState[m.id].qty, 0);
+    document.getElementById("total-price").textContent = `$${total}`;
+    return total;
+  }
+
+  // ---- 주문 제출 ----
+  const form = document.getElementById("order-form");
+  const nameInput = document.getElementById("customer-name");
+  const submitBtn = document.getElementById("submit-btn");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    let valid = true;
+
+    const name = nameInput.value.trim();
+    if (!name) {
+      document.getElementById("name-error").classList.add("show");
+      nameInput.classList.add("invalid");
+      valid = false;
+    } else {
+      document.getElementById("name-error").classList.remove("show");
+      nameInput.classList.remove("invalid");
+    }
+
+    const items = MENU.filter((m) => itemState[m.id].qty > 0).map((m) => ({
+      name: m.name,
+      temp: itemState[m.id].temp,
+      qty: itemState[m.id].qty,
+    }));
+
+    if (items.length === 0) {
+      document.getElementById("menu-error").classList.add("show");
+      valid = false;
+    } else {
+      document.getElementById("menu-error").classList.remove("show");
+    }
+
+    if (!valid) return;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "주문 중...";
+
+    const { data, error } = await db
+      .from("orders")
+      .insert({
+        customer_name: name,
+        items,
+        pickup_time: selectedPickup,
+        status: "waiting",
+      })
+      .select()
+      .single();
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = "주문하기";
+
+    if (error) {
+      alert("주문에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      console.error(error);
+      return;
+    }
+
+    showConfirmation(data, items);
+  });
+
+  // ---- 확인 카드 ----
+  function showConfirmation(order, items) {
+    form.hidden = true;
+    const card = document.getElementById("confirm-card");
+    card.hidden = false;
+
+    document.getElementById("confirm-order-no").textContent = `#${order.id}`;
+    setStatusBadge(order.status);
+
+    const itemsHtml = items
+      .map((it) => `<div class="row"><span>${it.name} (${it.temp === "HOT" ? "Hot" : "Ice"})</span><span>x${it.qty}</span></div>`)
+      .join("");
+
+    document.getElementById("confirm-summary").innerHTML = `
+      <div class="row"><span>${order.customer_name}</span><span>${order.pickup_time}</span></div>
+      <div class="row label">주문 내역</div>
+      ${itemsHtml}
+    `;
+
+    subscribeToOrder(order.id);
+  }
+
+  function setStatusBadge(status) {
+    const badge = document.getElementById("confirm-status");
+    badge.textContent = STATUS_LABEL[status] || status;
+    badge.className = "status-badge " + status;
+  }
+
+  // 내 주문 하나만 실시간으로 상태 변화를 구독합니다.
+  function subscribeToOrder(orderId) {
+    if (realtimeChannel) db.removeChannel(realtimeChannel);
+
+    realtimeChannel = db
+      .channel(`order-${orderId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders", filter: `id=eq.${orderId}` },
+        (payload) => setStatusBadge(payload.new.status)
+      )
+      .subscribe();
+  }
+
+  document.getElementById("new-order-btn").addEventListener("click", () => {
+    if (realtimeChannel) {
+      db.removeChannel(realtimeChannel);
+      realtimeChannel = null;
+    }
+    MENU.forEach((m) => (itemState[m.id] = { temp: "HOT", qty: 0 }));
+    document.querySelectorAll(".menu-item").forEach((row) => {
+      row.querySelector(".qty").textContent = "0";
+      row.querySelectorAll(".temp-btn").forEach((b) => b.classList.toggle("active", b.dataset.temp === "HOT"));
+    });
+    nameInput.value = "";
+    updateTotal();
+    document.getElementById("confirm-card").hidden = true;
+    form.hidden = false;
+  });
+</script>
+</body>
+</html>

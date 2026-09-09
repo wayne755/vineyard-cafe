@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Vineyard Cafe · Barista</title>
+<style>
+  :root {
+    --cream: #f7f2e9;
+    --cream-soft: #efe8d9;
+    --brown: #3e2b22;
+    --brown-soft: #6b564a;
+    --sage: #7c8c6b;
+    --sage-dark: #5f6e4f;
+    --sage-light: #e4e9dc;
+    --amber: #c78a3a;
+    --amber-light: #fbe8cf;
+    --error: #b3452f;
+    --white: #fffdf9;
+    --radius: 16px;
+    --shadow: 0 2px 10px rgba(62, 43, 34, 0.08);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--cream);
+    color: var(--brown);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 18px 60px;
+  }
+
+  header.top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  header.top .name {
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  #conn-indicator {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--sage-light);
+    color: var(--sage-dark);
+  }
+
+  #conn-indicator.offline {
+    background: #f6d9d0;
+    color: var(--error);
+  }
+
+  .summary-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .summary-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    text-align: center;
+  }
+
+  .summary-card .num {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--sage-dark);
+  }
+
+  .summary-card.making .num { color: var(--amber); }
+
+  .summary-card .label {
+    font-size: 13px;
+    color: var(--brown-soft);
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .batch-card {
+    background: var(--sage-light);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 24px;
+  }
+
+  .batch-card .title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--sage-dark);
+    margin-bottom: 8px;
+    letter-spacing: 0.02em;
+  }
+
+  .batch-card .content {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--brown);
+  }
+
+  .batch-card .empty {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--brown-soft);
+  }
+
+  .order-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .order-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px 20px;
+  }
+
+  .order-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+
+  .order-no {
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  .order-customer {
+    font-size: 14px;
+    color: var(--brown-soft);
+    margin-top: 2px;
+  }
+
+  .order-meta {
+    text-align: right;
+    font-size: 13px;
+    color: var(--brown-soft);
+  }
+
+  .order-meta .elapsed {
+    font-weight: 700;
+    color: var(--brown);
+  }
+
+  .order-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 14px;
+  }
+
+  .order-item-chip {
+    background: var(--cream-soft);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .order-card-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-pill {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--sage-light);
+    color: var(--sage-dark);
+  }
+
+  .status-pill.making {
+    background: var(--amber-light);
+    color: #93591a;
+  }
+
+  .action-btn {
+    flex: 0 0 auto;
+    padding: 14px 22px;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    color: var(--white);
+    background: var(--sage-dark);
+    cursor: pointer;
+  }
+
+  .action-btn.making-btn {
+    background: var(--amber);
+  }
+
+  .action-btn:active { opacity: 0.85; }
+
+  .empty-state {
+    text-align: center;
+    color: var(--brown-soft);
+    padding: 60px 20px;
+    font-size: 15px;
+  }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <div class="name">Vineyard Cafe · Barista</div>
+    <div id="conn-indicator">실시간 연결됨</div>
+  </header>
+
+  <div class="summary-row">
+    <div class="summary-card">
+      <div class="num" id="waiting-count">0</div>
+      <div class="label">대기</div>
+    </div>
+    <div class="summary-card making">
+      <div class="num" id="making-count">0</div>
+      <div class="label">제조중</div>
+    </div>
+  </div>
+
+  <div class="batch-card">
+    <div class="title">묶어서 만들 음료 (대기 중)</div>
+    <div class="content" id="batch-content"><span class="empty">대기 중인 주문이 없습니다</span></div>
+  </div>
+
+  <div class="order-list" id="order-list"></div>
+  <div class="empty-state" id="empty-state" hidden>표시할 주문이 없습니다</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+  const STATUS_LABEL = { waiting: "대기중", making: "제조중" };
+  const TEMP_LABEL = { HOT: "Hot", ICE: "Ice" };
+  const POLL_INTERVAL_MS = 5000;
+  const TICK_INTERVAL_MS = 30000; // 경과 시간 라벨 갱신 주기
+
+  const db = window.supabase.createClient(
+    window.SUPABASE_CONFIG.url,
+    window.SUPABASE_CONFIG.anonKey
+  );
+
+  let orders = []; // 대기중 + 제조중 주문만 들고 있음 (완료되면 목록에서 제거)
+  let pollTimer = null;
+
+  // ---- 데이터 가져오기 ----
+  async function fetchOrders() {
+    const { data, error } = await db
+      .from("orders")
+      .select("*")
+      .in("status", ["waiting", "making"])
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+    orders = data;
+    render();
+  }
+
+  // ---- 실시간 구독 ----
+  function subscribeRealtime() {
+    const channel = db
+      .channel("barista-orders")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        handleRealtimeChange
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setConnected(true);
+          stopPolling();
+        } else if (["TIMED_OUT", "CLOSED", "CHANNEL_ERROR"].includes(status)) {
+          setConnected(false);
+          startPolling();
+        }
+      });
+    return channel;
+  }
+
+  function handleRealtimeChange(payload) {
+    const { eventType, new: newRow, old: oldRow } = payload;
+
+    if (eventType === "INSERT") {
+      if (newRow.status === "waiting" || newRow.status === "making") {
+        orders.push(newRow);
+        orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      }
+    } else if (eventType === "UPDATE") {
+      const idx = orders.findIndex((o) => o.id === newRow.id);
+      if (newRow.status === "done") {
+        if (idx > -1) orders.splice(idx, 1);
+      } else if (idx > -1) {
+        orders[idx] = newRow;
+      } else {
+        orders.push(newRow);
+        orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      }
+    } else if (eventType === "DELETE") {
+      const idx = orders.findIndex((o) => o.id === oldRow.id);
+      if (idx > -1) orders.splice(idx, 1);
+    }
+
+    render();
+  }
+
+  // ---- 연결 끊김 폴백: 5초 폴링 ----
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(fetchOrders, POLL_INTERVAL_MS);
+  }
+
+  function stopPolling() {
+    if (!pollTimer) return;
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  function setConnected(isConnected) {
+    const el = document.getElementById("conn-indicator");
+    el.textContent = isConnected ? "실시간 연결됨" : "연결 끊김 · 5초마다 새로고침 중";
+    el.classList.toggle("offline", !isConnected);
+  }
+
+  // ---- 상태 변경 ----
+  async function advanceStatus(orderId, nextStatus) {
+    const idx = orders.findIndex((o) => o.id === orderId);
+    const prev = idx > -1 ? { ...orders[idx] } : null;
+
+    // 낙관적 업데이트: 응답 기다리지 않고 화면 먼저 갱신
+    if (idx > -1) {
+      if (nextStatus === "done") orders.splice(idx, 1);
+      else orders[idx] = { ...orders[idx], status: nextStatus };
+      render();
+    }
+
+    const { error } = await db.from("orders").update({ status: nextStatus }).eq("id", orderId);
+    if (error) {
+      console.error(error);
+      alert("상태 변경에 실패했어요. 다시 시도해 주세요.");
+      if (prev) {
+        // 실패 시 원래 상태로 되돌림
+        const backIdx = orders.findIndex((o) => o.id === orderId);
+        if (backIdx === -1) orders.push(prev);
+        else orders[backIdx] = prev;
+        orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        render();
+      }
+    }
+  }
+
+  // ---- 렌더링 ----
+  function elapsedLabel(createdAt) {
+    const mins = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000));
+    return mins < 1 ? "방금" : `${mins}분 전`;
+  }
+
+  function render() {
+    const waiting = orders.filter((o) => o.status === "waiting");
+    const making = orders.filter((o) => o.status === "making");
+
+    document.getElementById("waiting-count").textContent = waiting.length;
+    document.getElementById("making-count").textContent = making.length;
+
+    renderBatch(waiting);
+    renderList();
+  }
+
+  function renderBatch(waitingOrders) {
+    const totals = new Map(); // key: `${name}|${temp}` -> qty
+    waitingOrders.forEach((o) => {
+      (o.items || []).forEach((it) => {
+        const key = `${it.name}|${it.temp}`;
+        totals.set(key, (totals.get(key) || 0) + it.qty);
+      });
+    });
+
+    const el = document.getElementById("batch-content");
+    if (totals.size === 0) {
+      el.innerHTML = `<span class="empty">대기 중인 주문이 없습니다</span>`;
+      return;
+    }
+
+    const parts = [...totals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([key, qty]) => {
+        const [name, temp] = key.split("|");
+        return `${name} ${TEMP_LABEL[temp] || temp} ${qty}`;
+      });
+
+    el.textContent = parts.join(" · ");
+  }
+
+  function renderList() {
+    const listEl = document.getElementById("order-list");
+    const emptyEl = document.getElementById("empty-state");
+
+    if (orders.length === 0) {
+      listEl.innerHTML = "";
+      emptyEl.hidden = false;
+      return;
+    }
+    emptyEl.hidden = true;
+
+    listEl.innerHTML = orders
+      .map((o) => {
+        const itemsHtml = (o.items || [])
+          .map((it) => `<span class="order-item-chip">${it.name} ${TEMP_LABEL[it.temp] || it.temp} x${it.qty}</span>`)
+          .join("");
+
+        const isWaiting = o.status === "waiting";
+        const actionLabel = isWaiting ? "제조 시작" : "완료";
+        const nextStatus = isWaiting ? "making" : "done";
+        const btnClass = isWaiting ? "" : "making-btn";
+
+        return `
+          <div class="order-card">
+            <div class="order-card-head">
+              <div>
+                <div class="order-no">#${o.id}</div>
+                <div class="order-customer">${escapeHtml(o.customer_name)}</div>
+              </div>
+              <div class="order-meta">
+                <div>픽업 ${escapeHtml(o.pickup_time)}</div>
+                <div class="elapsed">${elapsedLabel(o.created_at)}</div>
+              </div>
+            </div>
+            <div class="order-items">${itemsHtml}</div>
+            <div class="order-card-foot">
+              <span class="status-pill ${o.status}">${STATUS_LABEL[o.status]}</span>
+              <button class="action-btn ${btnClass}" data-id="${o.id}" data-next="${nextStatus}">${actionLabel}</button>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    listEl.querySelectorAll(".action-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        advanceStatus(Number(btn.dataset.id), btn.dataset.next);
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str ?? "";
+    return div.innerHTML;
+  }
+
+  // ---- 시작 ----
+  fetchOrders();
+  subscribeRealtime();
+  setInterval(render, TICK_INTERVAL_MS); // 경과 시간 라벨만 주기적으로 갱신
+</script>
+</body>
+</html>
