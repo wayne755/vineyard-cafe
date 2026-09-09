@@ -290,6 +290,14 @@
     margin-top: 6px;
   }
 
+  .confirm-summary .row.total {
+    border-top: 1px solid #ddd3bc;
+    margin-top: 8px;
+    padding-top: 10px;
+    font-weight: 700;
+    color: var(--brown);
+  }
+
   .new-order-btn {
     margin-top: 20px;
     background: none;
@@ -301,6 +309,55 @@
     cursor: pointer;
   }
 
+  .history-card {
+    margin-bottom: 28px;
+  }
+
+  .history-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--brown);
+    margin-bottom: 10px;
+  }
+
+  .history-item {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+
+  .history-item-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  .history-item-no {
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .history-item-detail {
+    font-size: 13px;
+    color: var(--brown-soft);
+  }
+
+  .history-status {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: var(--sage-light);
+    color: var(--sage-dark);
+  }
+
+  .history-status.making { background: #fbe8cf; color: #93591a; }
+  .history-status.done { background: var(--sage); color: var(--white); }
+
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -310,6 +367,12 @@
     <div class="name">Vineyard Cafe</div>
     <div class="tagline">FAITH. COFFEE. COMMUNITY.</div>
   </header>
+
+  <!-- 이전 주문내역 (이 기기에 저장된 주문만 표시) -->
+  <div class="history-card" id="history-card" hidden>
+    <div class="history-title">이전 주문내역</div>
+    <div id="history-list"></div>
+  </div>
 
   <!-- 주문 폼 -->
   <form id="order-form">
@@ -363,6 +426,8 @@
   const PICKUP_OPTIONS = ["12:30", "12:45", "13:00", "13:15"];
 
   const STATUS_LABEL = { waiting: "대기중", making: "제조중", done: "완료" };
+  const HISTORY_KEY = "vineyardCafeOrderHistory";
+  const HISTORY_LIMIT = 10;
 
   // ---- Supabase 클라이언트 ----
   // window.supabase는 CDN 스크립트가 만든 전역 네임스페이스라, 우리가 만든 클라이언트는
@@ -451,6 +516,72 @@
     return total;
   }
 
+  function calcItemsTotal(items) {
+    return items.reduce((sum, it) => {
+      const menuItem = MENU.find((m) => m.name === it.name);
+      return sum + (menuItem ? menuItem.price * it.qty : 0);
+    }, 0);
+  }
+
+  // ---- 이전 주문내역 (이 기기의 localStorage에만 저장, 서버에는 남지 않음) ----
+  function loadHistory() {
+    try {
+      return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveHistoryEntry(order, items, total) {
+    const history = loadHistory().filter((h) => h.id !== order.id);
+    history.unshift({
+      id: order.id,
+      pickup_time: order.pickup_time,
+      items,
+      total,
+      created_at: order.created_at,
+    });
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, HISTORY_LIMIT)));
+    } catch {
+      // localStorage 사용 불가 환경(시크릿 모드 등)이면 그냥 건너뜀
+    }
+  }
+
+  async function renderHistory() {
+    const history = loadHistory();
+    const card = document.getElementById("history-card");
+    const listEl = document.getElementById("history-list");
+
+    if (history.length === 0) {
+      card.hidden = true;
+      return;
+    }
+
+    // 최신 상태를 서버에서 다시 조회 (localStorage에는 주문 당시 상태만 저장돼 있음)
+    const ids = history.map((h) => h.id);
+    const { data } = await db.from("orders").select("id, status").in("id", ids);
+    const statusMap = new Map((data || []).map((o) => [o.id, o.status]));
+
+    listEl.innerHTML = history
+      .map((h) => {
+        const status = statusMap.get(h.id) || "waiting";
+        const itemsSummary = h.items.map((it) => `${it.name} x${it.qty}`).join(", ");
+        return `
+          <div class="history-item">
+            <div class="history-item-top">
+              <span class="history-item-no">#${h.id}</span>
+              <span class="history-status ${status}">${STATUS_LABEL[status] || status}</span>
+            </div>
+            <div class="history-item-detail">${itemsSummary} · $${h.total} · 픽업 ${h.pickup_time}</div>
+          </div>
+        `;
+      })
+      .join("");
+
+    card.hidden = false;
+  }
+
   // ---- 주문 제출 ----
   const form = document.getElementById("order-form");
   const nameInput = document.getElementById("customer-name");
@@ -509,11 +640,14 @@
       return;
     }
 
-    showConfirmation(data, items);
+    const total = calcItemsTotal(items);
+    saveHistoryEntry(data, items, total);
+    showConfirmation(data, items, total);
   });
 
   // ---- 확인 카드 ----
-  function showConfirmation(order, items) {
+  function showConfirmation(order, items, total) {
+    document.getElementById("history-card").hidden = true;
     form.hidden = true;
     const card = document.getElementById("confirm-card");
     card.hidden = false;
@@ -529,6 +663,7 @@
       <div class="row"><span>${order.customer_name}</span><span>${order.pickup_time}</span></div>
       <div class="row label">주문 내역</div>
       ${itemsHtml}
+      <div class="row total"><span>합계</span><span>$${total}</span></div>
     `;
 
     subscribeToOrder(order.id);
@@ -568,7 +703,10 @@
     updateTotal();
     document.getElementById("confirm-card").hidden = true;
     form.hidden = false;
+    renderHistory();
   });
+
+  renderHistory();
 </script>
 </body>
 </html>
