@@ -312,12 +312,43 @@
     margin-bottom: 28px;
   }
 
+  .history-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
   .history-title {
     font-size: 14px;
     font-weight: 700;
     color: var(--brown);
-    margin-bottom: 10px;
   }
+
+  .history-clear-btn {
+    background: none;
+    border: none;
+    padding: 6px 0 6px 12px;
+    font-size: 13px;
+    color: var(--brown-soft);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .history-delete-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--brown-soft);
+    background: var(--cream-soft);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
+  .history-delete-btn:active { opacity: 0.8; }
 
   .history-item {
     background: var(--white);
@@ -416,7 +447,10 @@
 
   <!-- 이전 주문내역 (이 기기에 저장된 주문만 표시) -->
   <div class="history-card" id="history-card" hidden>
-    <div class="history-title">이전 주문내역</div>
+    <div class="history-head">
+      <div class="history-title">이전 주문내역</div>
+      <button type="button" class="history-clear-btn" id="history-clear-btn">전체 지우기</button>
+    </div>
     <div id="history-list"></div>
   </div>
 
@@ -583,11 +617,7 @@
       total,
       created_at: order.created_at,
     });
-    try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, HISTORY_LIMIT)));
-    } catch {
-      // localStorage 사용 불가 환경(시크릿 모드 등)이면 그냥 건너뜀
-    }
+    saveHistory(history.slice(0, HISTORY_LIMIT));
   }
 
   async function renderHistory() {
@@ -631,6 +661,7 @@
             <div class="history-detail" hidden>
               ${itemRows}
               <div class="row"><span>주문 시각</span><span>${formatTime(h.created_at)}</span></div>
+              <button type="button" class="history-delete-btn" data-id="${h.id}">내역에서 지우기</button>
             </div>
           </div>
         `;
@@ -646,8 +677,31 @@
       });
     });
 
+    listEl.querySelectorAll(".history-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", () => removeHistoryEntry(Number(btn.dataset.id)));
+    });
+
     card.hidden = false;
   }
+
+  // 내역은 이 휴대폰에만 저장돼 있어서, 지워도 카페의 주문 기록에는 영향이 없습니다.
+  function saveHistory(history) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    } catch {
+      // localStorage를 못 쓰는 환경이면 건너뜀
+    }
+  }
+
+  function removeHistoryEntry(id) {
+    saveHistory(loadHistory().filter((h) => h.id !== id));
+    renderHistory();
+  }
+
+  document.getElementById("history-clear-btn").addEventListener("click", () => {
+    saveHistory([]);
+    renderHistory();
+  });
 
   function formatTime(iso) {
     return new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
