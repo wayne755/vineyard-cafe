@@ -65,7 +65,7 @@
 
   .summary-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 12px;
     margin-bottom: 16px;
   }
@@ -85,6 +85,7 @@
   }
 
   .summary-card.making .num { color: var(--amber); }
+  .summary-card.money .num { color: var(--brown); }
 
   .summary-card .label {
     font-size: 13px;
@@ -157,6 +158,14 @@
     color: var(--brown-soft);
   }
 
+  .order-amount {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--brown);
+    line-height: 1.2;
+    margin-bottom: 2px;
+  }
+
   .order-meta .elapsed {
     font-weight: 700;
     color: var(--brown);
@@ -224,6 +233,67 @@
     font-size: 15px;
   }
 
+  #header-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .sound-btn {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 14px;
+    min-height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--cream-soft);
+    background: var(--white);
+    color: var(--brown);
+    cursor: pointer;
+  }
+
+  .sound-btn.off { color: var(--brown-soft); opacity: 0.7; }
+
+  .done-section {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--cream-soft);
+  }
+
+  .done-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--brown-soft);
+    margin-bottom: 10px;
+  }
+
+  .done-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    background: var(--white);
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--brown-soft);
+  }
+
+  .undo-btn {
+    flex: 0 0 auto;
+    padding: 10px 18px;
+    min-height: 44px;
+    font-size: 14px;
+    font-weight: 700;
+    border: 1px solid var(--sage);
+    border-radius: 10px;
+    background: var(--white);
+    color: var(--sage-dark);
+    cursor: pointer;
+  }
+
+  .undo-btn:active { background: var(--sage-light); }
+
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -231,7 +301,10 @@
 <div class="page">
   <header class="top">
     <div class="name">Vineyard Cafe · Barista</div>
-    <div id="conn-indicator">실시간 연결됨</div>
+    <div id="header-controls">
+      <button type="button" class="sound-btn" id="sound-toggle">🔔 알림음</button>
+      <div id="conn-indicator">실시간 연결됨</div>
+    </div>
   </header>
 
   <div class="summary-row">
@@ -243,6 +316,10 @@
       <div class="num" id="making-count">0</div>
       <div class="label">제조중</div>
     </div>
+    <div class="summary-card money">
+      <div class="num" id="today-total">$0</div>
+      <div class="label">오늘 합계</div>
+    </div>
   </div>
 
   <div class="batch-card">
@@ -252,10 +329,17 @@
 
   <div class="order-list" id="order-list"></div>
   <div class="empty-state" id="empty-state" hidden>표시할 주문이 없습니다</div>
+
+  <!-- 실수로 완료를 눌렀을 때 되돌리기 위한 최근 완료 목록 -->
+  <div class="done-section" id="done-section" hidden>
+    <div class="done-title">최근 완료</div>
+    <div id="done-list"></div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="menu.js"></script>
 <script>
   const STATUS_LABEL = { waiting: "대기중", making: "제조중" };
   const TEMP_LABEL = { HOT: "Hot", ICE: "Ice" };
@@ -267,21 +351,60 @@
     window.SUPABASE_CONFIG.anonKey
   );
 
-  let orders = []; // 대기중 + 제조중 주문만 들고 있음 (완료되면 목록에서 제거)
+  // 메뉴 이름 -> 가격. 손님 화면과 같은 menu.js를 쓰므로 가격이 어긋날 일이 없습니다.
+  const PRICE_BY_NAME = new Map(window.MENU.map((m) => [m.name, m.price]));
+
+  function orderTotal(order) {
+    return (order.items || []).reduce(
+      (sum, it) => sum + (PRICE_BY_NAME.get(it.name) || 0) * it.qty,
+      0
+    );
+  }
+
+  // 오늘 들어온 주문 전체(완료 포함). 완료된 건 메인 목록에서 빠지고 "최근 완료"에만 남습니다.
+  let orders = [];
   let pollTimer = null;
+  const knownIds = new Set(); // 알림음을 새 주문에만 울리기 위한 목록
+  let initialLoaded = false;
+
+  const byCreatedAt = (a, b) => new Date(a.created_at) - new Date(b.created_at);
+
+  // 지난 주일에 완료 못 한 주문이 계속 쌓이지 않도록 오늘 것만 불러옵니다.
+  function todayStartISO() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
+
+  function isToday(iso) {
+    return new Date(iso).toDateString() === new Date().toDateString();
+  }
+
+  // 처음 보는 주문이면 true (알림음 판단용)
+  function noteOrder(row) {
+    if (knownIds.has(row.id)) return false;
+    knownIds.add(row.id);
+    return true;
+  }
 
   // ---- 데이터 가져오기 ----
   async function fetchOrders() {
     const { data, error } = await db
       .from("orders")
       .select("*")
-      .in("status", ["waiting", "making"])
+      .gte("created_at", todayStartISO())
       .order("created_at", { ascending: true });
 
     if (error) {
       console.error(error);
       return;
     }
+
+    // 폴링 중에 새로 들어온 주문에도 알림음이 울리도록
+    const hasNew = data.filter((o) => noteOrder(o) && o.status === "waiting").length > 0;
+    if (initialLoaded && hasNew) playChime();
+    initialLoaded = true;
+
     orders = data;
     render();
   }
@@ -310,28 +433,77 @@
   function handleRealtimeChange(payload) {
     const { eventType, new: newRow, old: oldRow } = payload;
 
-    if (eventType === "INSERT") {
-      if (newRow.status === "waiting" || newRow.status === "making") {
-        orders.push(newRow);
-        orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-      }
-    } else if (eventType === "UPDATE") {
-      const idx = orders.findIndex((o) => o.id === newRow.id);
-      if (newRow.status === "done") {
-        if (idx > -1) orders.splice(idx, 1);
-      } else if (idx > -1) {
-        orders[idx] = newRow;
-      } else {
-        orders.push(newRow);
-        orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-      }
-    } else if (eventType === "DELETE") {
+    if (eventType === "DELETE") {
       const idx = orders.findIndex((o) => o.id === oldRow.id);
       if (idx > -1) orders.splice(idx, 1);
+      render();
+      return;
     }
+
+    if (!isToday(newRow.created_at)) return;
+
+    const idx = orders.findIndex((o) => o.id === newRow.id);
+    if (idx > -1) {
+      orders[idx] = newRow;
+    } else {
+      orders.push(newRow);
+      orders.sort(byCreatedAt);
+    }
+
+    if (eventType === "INSERT" && noteOrder(newRow)) playChime();
 
     render();
   }
+
+  // ---- 새 주문 알림음 ----
+  // 오디오 파일 없이 브라우저가 직접 소리를 만듭니다(오프라인에서도 동작).
+  // 브라우저 정책상 화면을 한 번 터치하기 전까지는 소리가 나지 않습니다.
+  let audioCtx = null;
+  let soundOn = localStorage.getItem("baristaSound") !== "off";
+
+  function unlockAudio() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!audioCtx) audioCtx = new Ctx();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  }
+
+  document.addEventListener("click", unlockAudio);
+  document.addEventListener("touchstart", unlockAudio);
+
+  function playChime() {
+    if (!soundOn || !audioCtx) return;
+    const start = audioCtx.currentTime;
+    [880, 1174].forEach((freq, i) => {
+      const at = start + i * 0.18;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(0.3, at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(at);
+      osc.stop(at + 0.4);
+    });
+  }
+
+  const soundBtn = document.getElementById("sound-toggle");
+
+  function renderSoundBtn() {
+    soundBtn.textContent = soundOn ? "🔔 알림음" : "🔕 알림음 꺼짐";
+    soundBtn.classList.toggle("off", !soundOn);
+  }
+
+  soundBtn.addEventListener("click", () => {
+    soundOn = !soundOn;
+    localStorage.setItem("baristaSound", soundOn ? "on" : "off");
+    renderSoundBtn();
+    if (soundOn) playChime(); // 켤 때 소리를 들려줘서 볼륨을 확인할 수 있게
+  });
+
+  renderSoundBtn();
 
   // ---- 연결 끊김 폴백: 5초 폴링 ----
   function startPolling() {
@@ -358,8 +530,7 @@
 
     // 낙관적 업데이트: 응답 기다리지 않고 화면 먼저 갱신
     if (idx > -1) {
-      if (nextStatus === "done") orders.splice(idx, 1);
-      else orders[idx] = { ...orders[idx], status: nextStatus };
+      orders[idx] = { ...orders[idx], status: nextStatus };
       render();
     }
 
@@ -370,9 +541,7 @@
       if (prev) {
         // 실패 시 원래 상태로 되돌림
         const backIdx = orders.findIndex((o) => o.id === orderId);
-        if (backIdx === -1) orders.push(prev);
-        else orders[backIdx] = prev;
-        orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        if (backIdx > -1) orders[backIdx] = prev;
         render();
       }
     }
@@ -385,14 +554,19 @@
   }
 
   function render() {
-    const waiting = orders.filter((o) => o.status === "waiting");
-    const making = orders.filter((o) => o.status === "making");
+    const active = orders.filter((o) => o.status === "waiting" || o.status === "making");
+    const waiting = active.filter((o) => o.status === "waiting");
+    const making = active.filter((o) => o.status === "making");
+    const done = orders.filter((o) => o.status === "done");
 
     document.getElementById("waiting-count").textContent = waiting.length;
     document.getElementById("making-count").textContent = making.length;
+    document.getElementById("today-total").textContent =
+      "$" + orders.reduce((sum, o) => sum + orderTotal(o), 0);
 
     renderBatch(waiting);
-    renderList();
+    renderList(active);
+    renderDone(done);
   }
 
   function renderBatch(waitingOrders) {
@@ -420,18 +594,18 @@
     el.textContent = parts.join(" · ");
   }
 
-  function renderList() {
+  function renderList(activeOrders) {
     const listEl = document.getElementById("order-list");
     const emptyEl = document.getElementById("empty-state");
 
-    if (orders.length === 0) {
+    if (activeOrders.length === 0) {
       listEl.innerHTML = "";
       emptyEl.hidden = false;
       return;
     }
     emptyEl.hidden = true;
 
-    listEl.innerHTML = orders
+    listEl.innerHTML = activeOrders
       .map((o) => {
         const itemsHtml = (o.items || [])
           .map((it) => `<span class="order-item-chip">${it.name} ${TEMP_LABEL[it.temp] || it.temp} x${it.qty}</span>`)
@@ -450,6 +624,7 @@
                 <div class="order-customer">${escapeHtml(o.customer_name)}</div>
               </div>
               <div class="order-meta">
+                <div class="order-amount">$${orderTotal(o)}</div>
                 <div>픽업 ${escapeHtml(o.pickup_time)}</div>
                 <div class="elapsed">${elapsedLabel(o.created_at)}</div>
               </div>
@@ -469,6 +644,38 @@
         advanceStatus(Number(btn.dataset.id), btn.dataset.next);
       });
     });
+  }
+
+  // 완료 버튼을 실수로 눌렀을 때 되돌릴 수 있도록 최근 완료 5건을 남겨둡니다.
+  function renderDone(doneOrders) {
+    const section = document.getElementById("done-section");
+    const listEl = document.getElementById("done-list");
+
+    if (doneOrders.length === 0) {
+      section.hidden = true;
+      return;
+    }
+
+    const recent = [...doneOrders].sort((a, b) => byCreatedAt(b, a)).slice(0, 5);
+
+    listEl.innerHTML = recent
+      .map(
+        (o) => `
+          <div class="done-item">
+            <span>#${o.id} ${escapeHtml(o.customer_name)} · $${orderTotal(o)}</span>
+            <button class="undo-btn" data-id="${o.id}">되돌리기</button>
+          </div>
+        `
+      )
+      .join("");
+
+    listEl.querySelectorAll(".undo-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        advanceStatus(Number(btn.dataset.id), "making");
+      });
+    });
+
+    section.hidden = false;
   }
 
   function escapeHtml(str) {

@@ -413,15 +413,10 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="menu.js"></script>
 <script>
   // ---- 설정 ----
-  const MENU = [
-    { id: "americano", name: "Americano", price: 2 },
-    { id: "vanilla-latte", name: "Vanilla Latte", price: 3 },
-    { id: "matcha", name: "Matcha", price: 3 },
-    { id: "hot-choco", name: "Hot Choco", price: 3 },
-    { id: "tea", name: "Assorted Hot Teas", price: 1 },
-  ];
+  const MENU = window.MENU; // menu.js에서 가져옴 (가격은 그 파일 한 곳에서만 관리)
 
   const PICKUP_OPTIONS = ["12:30", "12:45", "13:00", "13:15"];
 
