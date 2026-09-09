@@ -228,18 +228,21 @@
   }
 
   .sound-btn {
-    font-size: 12px;
-    font-weight: 700;
-    padding: 8px 14px;
-    min-height: 40px;
-    border-radius: 999px;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    line-height: 1;
+    padding: 0;
+    border-radius: 50%;
     border: 1px solid var(--cream-soft);
     background: var(--white);
-    color: var(--brown);
     cursor: pointer;
   }
 
-  .sound-btn.off { color: var(--brown-soft); opacity: 0.7; }
+  .sound-btn.off { opacity: 0.45; }
 
   .done-section {
     margin-top: 28px;
@@ -329,7 +332,7 @@
   <header class="top">
     <div class="name">Vineyard Cafe · Barista</div>
     <div id="header-controls">
-      <button type="button" class="sound-btn" id="sound-toggle">🔔 알림음</button>
+      <button type="button" class="sound-btn" id="sound-toggle">🔔</button>
     </div>
   </header>
 
@@ -546,7 +549,9 @@
   const soundBtn = document.getElementById("sound-toggle");
 
   function renderSoundBtn() {
-    soundBtn.textContent = soundOn ? "🔔 알림음" : "🔕 알림음 꺼짐";
+    soundBtn.textContent = soundOn ? "🔔" : "🔕";
+    soundBtn.title = soundOn ? "새 주문 알림음 켜짐" : "새 주문 알림음 꺼짐";
+    soundBtn.setAttribute("aria-label", soundBtn.title);
     soundBtn.classList.toggle("off", !soundOn);
   }
 
