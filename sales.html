@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vineyard Cafe · 정산</title>
+<style>
+  :root {
+    --cream: #f7f2e9;
+    --cream-soft: #efe8d9;
+    --brown: #3e2b22;
+    --brown-soft: #6b564a;
+    --sage: #7c8c6b;
+    --sage-dark: #5f6e4f;
+    --sage-light: #e4e9dc;
+    --white: #fffdf9;
+    --radius: 16px;
+    --shadow: 0 2px 10px rgba(62, 43, 34, 0.08);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--cream);
+    color: var(--brown);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 18px 60px;
+  }
+
+  header.top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+
+  header.top .name {
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  .back-link {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--sage-dark);
+    text-decoration: none;
+  }
+
+  .totals {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .total-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    text-align: center;
+  }
+
+  .total-card .num {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--sage-dark);
+  }
+
+  .total-card .label {
+    font-size: 13px;
+    color: var(--brown-soft);
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .month-block { margin-bottom: 26px; }
+
+  .month-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0 4px 10px;
+    border-bottom: 1px solid var(--cream-soft);
+    margin-bottom: 12px;
+  }
+
+  .month-name {
+    font-size: 15px;
+    font-weight: 800;
+  }
+
+  .month-total {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--sage-dark);
+  }
+
+  .day-item {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+
+  .day-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 16px 18px;
+    background: none;
+    border: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .day-date {
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .day-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--brown-soft);
+  }
+
+  .day-amount {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--brown);
+  }
+
+  .chevron {
+    font-size: 12px;
+    color: var(--brown-soft);
+    transition: transform 0.15s ease;
+  }
+
+  .day-item.open .chevron { transform: rotate(180deg); }
+
+  .day-detail {
+    padding: 0 18px 16px;
+    font-size: 14px;
+  }
+
+  .order-row {
+    padding: 10px 0;
+    border-top: 1px solid var(--cream-soft);
+  }
+
+  .order-row-top {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+  }
+
+  .order-row-items {
+    font-size: 13px;
+    color: var(--brown-soft);
+    margin-top: 2px;
+  }
+
+  .drinks-summary {
+    background: var(--sage-light);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-top: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--brown);
+  }
+
+  .state-msg {
+    text-align: center;
+    color: var(--brown-soft);
+    padding: 60px 20px;
+    font-size: 15px;
+  }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <div class="name">Vineyard Cafe · 정산</div>
+    <a class="back-link" href="barista.html">주문 화면 →</a>
+  </header>
+
+  <div class="totals">
+    <div class="total-card">
+      <div class="num" id="month-total">$0</div>
+      <div class="label" id="month-label">이번 달</div>
+    </div>
+    <div class="total-card">
+      <div class="num" id="all-total">$0</div>
+      <div class="label">전체 누적</div>
+    </div>
+  </div>
+
+  <div id="month-list"></div>
+  <div class="state-msg" id="state-msg">불러오는 중...</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="menu.js"></script>
+<script>
+  const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+  const TEMP_LABEL = { HOT: "Hot", ICE: "Ice" };
+
+  const db = window.supabase.createClient(
+    window.SUPABASE_CONFIG.url,
+    window.SUPABASE_CONFIG.anonKey
+  );
+
+  const PRICE_BY_NAME = new Map(window.MENU.map((m) => [m.name, m.price]));
+
+  // 주문에 저장된 가격을 우선 씁니다. 옛날 주문(가격 미저장)만 현재 메뉴 가격으로 계산합니다.
+  function unitPrice(item) {
+    return typeof item.price === "number" ? item.price : PRICE_BY_NAME.get(item.name) || 0;
+  }
+
+  function orderTotal(order) {
+    return (order.items || []).reduce((sum, it) => sum + unitPrice(it) * it.qty, 0);
+  }
+
+  function drinkCount(order) {
+    return (order.items || []).reduce((sum, it) => sum + it.qty, 0);
+  }
+
+  // 날짜는 보는 사람의 시간대 기준으로 묶습니다.
+  function dayKey(iso) {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function dayLabel(key) {
+    const [y, m, d] = key.split("-").map(Number);
+    return `${m}월 ${d}일 (${DAY_NAMES[new Date(y, m - 1, d).getDay()]})`;
+  }
+
+  function monthLabel(key) {
+    const [y, m] = key.split("-").map(Number);
+    return `${y}년 ${m}월`;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str ?? "";
+    return div.innerHTML;
+  }
+
+  async function load() {
+    const { data, error } = await db
+      .from("orders")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(2000);
+
+    const msgEl = document.getElementById("state-msg");
+
+    if (error) {
+      console.error(error);
+      msgEl.textContent = "매출을 불러오지 못했습니다. 새로고침해 주세요.";
+      return;
+    }
+
+    if (data.length === 0) {
+      msgEl.textContent = "아직 주문 기록이 없습니다";
+      return;
+    }
+
+    msgEl.hidden = true;
+    render(data);
+  }
+
+  function render(orders) {
+    // 날짜별로 묶고, 다시 월별로 묶습니다.
+    const byDay = new Map();
+    orders.forEach((o) => {
+      const key = dayKey(o.created_at);
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key).push(o);
+    });
+
+    const byMonth = new Map();
+    [...byDay.keys()]
+      .sort()
+      .reverse()
+      .forEach((day) => {
+        const month = day.slice(0, 7);
+        if (!byMonth.has(month)) byMonth.set(month, []);
+        byMonth.get(month).push(day);
+      });
+
+    const allTotal = orders.reduce((sum, o) => sum + orderTotal(o), 0);
+    const thisMonth = dayKey(new Date().toISOString()).slice(0, 7);
+    const thisMonthTotal = orders
+      .filter((o) => dayKey(o.created_at).startsWith(thisMonth))
+      .reduce((sum, o) => sum + orderTotal(o), 0);
+
+    document.getElementById("all-total").textContent = `$${allTotal}`;
+    document.getElementById("month-total").textContent = `$${thisMonthTotal}`;
+    document.getElementById("month-label").textContent = monthLabel(thisMonth);
+
+    document.getElementById("month-list").innerHTML = [...byMonth.entries()]
+      .map(([month, days]) => {
+        const monthTotal = days
+          .flatMap((d) => byDay.get(d))
+          .reduce((sum, o) => sum + orderTotal(o), 0);
+
+        const daysHtml = days
+          .map((day) => {
+            const dayOrders = byDay.get(day);
+            const total = dayOrders.reduce((sum, o) => sum + orderTotal(o), 0);
+            const cups = dayOrders.reduce((sum, o) => sum + drinkCount(o), 0);
+
+            // 그날 어떤 음료가 몇 잔 나갔는지
+            const drinkTotals = new Map();
+            dayOrders.forEach((o) =>
+              (o.items || []).forEach((it) => {
+                drinkTotals.set(it.name, (drinkTotals.get(it.name) || 0) + it.qty);
+              })
+            );
+            const drinksLine = [...drinkTotals.entries()]
+              .sort((a, b) => b[1] - a[1])
+              .map(([name, qty]) => `${name} ${qty}`)
+              .join(" · ");
+
+            const ordersHtml = [...dayOrders]
+              .sort((a, b) => a.id - b.id)
+              .map(
+                (o) => `
+                  <div class="order-row">
+                    <div class="order-row-top">
+                      <span>#${o.id} ${escapeHtml(o.customer_name)}</span>
+                      <span>$${orderTotal(o)}</span>
+                    </div>
+                    <div class="order-row-items">
+                      ${(o.items || [])
+                        .map((it) => `${it.name} ${TEMP_LABEL[it.temp] || it.temp} x${it.qty}`)
+                        .join(", ")}
+                    </div>
+                  </div>
+                `
+              )
+              .join("");
+
+            return `
+              <div class="day-item">
+                <button type="button" class="day-summary">
+                  <span class="day-date">${dayLabel(day)}</span>
+                  <span class="day-right">
+                    <span>${cups}잔</span>
+                    <span class="day-amount">$${total}</span>
+                    <span class="chevron">▼</span>
+                  </span>
+                </button>
+                <div class="day-detail" hidden>
+                  ${ordersHtml}
+                  <div class="drinks-summary">${drinksLine}</div>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+
+        return `
+          <div class="month-block">
+            <div class="month-head">
+              <span class="month-name">${monthLabel(month)}</span>
+              <span class="month-total">$${monthTotal}</span>
+            </div>
+            ${daysHtml}
+          </div>
+        `;
+      })
+      .join("");
+
+    document.querySelectorAll(".day-summary").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const item = btn.closest(".day-item");
+        const detail = item.querySelector(".day-detail");
+        detail.hidden = !detail.hidden;
+        item.classList.toggle("open", !detail.hidden);
+      });
+    });
+  }
+
+  load();
+</script>
+</body>
+</html>

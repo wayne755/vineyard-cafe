@@ -227,6 +227,14 @@
     gap: 10px;
   }
 
+  .sales-link {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--sage-dark);
+    text-decoration: none;
+    padding: 10px 4px;
+  }
+
   .sound-btn {
     width: 44px;
     height: 44px;
@@ -332,6 +340,7 @@
   <header class="top">
     <div class="name">Vineyard Cafe · Barista</div>
     <div id="header-controls">
+      <a class="sales-link" href="sales.html">정산</a>
       <button type="button" class="sound-btn" id="sound-toggle">🔔</button>
     </div>
   </header>
@@ -388,11 +397,12 @@
   // 메뉴 이름 -> 가격. 손님 화면과 같은 menu.js를 쓰므로 가격이 어긋날 일이 없습니다.
   const PRICE_BY_NAME = new Map(window.MENU.map((m) => [m.name, m.price]));
 
+  // 주문에 저장된 가격을 우선 쓰고, 없으면(옛날 주문) 현재 메뉴 가격으로 계산합니다.
   function orderTotal(order) {
-    return (order.items || []).reduce(
-      (sum, it) => sum + (PRICE_BY_NAME.get(it.name) || 0) * it.qty,
-      0
-    );
+    return (order.items || []).reduce((sum, it) => {
+      const price = typeof it.price === "number" ? it.price : PRICE_BY_NAME.get(it.name) || 0;
+      return sum + price * it.qty;
+    }, 0);
   }
 
   // 오늘 들어온 주문 전체(완료 포함). 완료된 건 메인 목록에서 빠지고 "최근 완료"에만 남습니다.

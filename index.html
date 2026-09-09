@@ -335,20 +335,6 @@
     cursor: pointer;
   }
 
-  .history-delete-btn {
-    width: 100%;
-    margin-top: 10px;
-    padding: 10px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--brown-soft);
-    background: var(--cream-soft);
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-  }
-
-  .history-delete-btn:active { opacity: 0.8; }
 
   .history-item {
     background: var(--white);
@@ -358,13 +344,19 @@
     overflow: hidden;
   }
 
+  .history-row {
+    display: flex;
+    align-items: stretch;
+  }
+
   .history-summary {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 10px;
-    width: 100%;
-    padding: 14px 16px;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 14px 8px 14px 16px;
     background: none;
     border: none;
     font: inherit;
@@ -372,6 +364,19 @@
     text-align: left;
     cursor: pointer;
   }
+
+  .history-x {
+    flex: 0 0 auto;
+    width: 44px;
+    border: none;
+    background: none;
+    color: var(--brown-soft);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .history-x:active { color: var(--error); }
 
   .history-summary-left {
     display: flex;
@@ -592,11 +597,14 @@
     return total;
   }
 
+  // 주문에 저장된 가격을 우선 쓰고, 없으면(옛날 주문) 현재 메뉴 가격으로 계산합니다.
+  function unitPrice(item) {
+    if (typeof item.price === "number") return item.price;
+    return MENU.find((m) => m.name === item.name)?.price || 0;
+  }
+
   function calcItemsTotal(items) {
-    return items.reduce((sum, it) => {
-      const menuItem = MENU.find((m) => m.name === it.name);
-      return sum + (menuItem ? menuItem.price * it.qty : 0);
-    }, 0);
+    return items.reduce((sum, it) => sum + unitPrice(it) * it.qty, 0);
   }
 
   // ---- 이전 주문내역 (이 기기의 localStorage에만 저장, 서버에는 남지 않음) ----
@@ -639,29 +647,31 @@
       .map((h) => {
         const status = statusMap.get(h.id) || "waiting";
         const itemRows = h.items
-          .map((it) => {
-            const price = (MENU.find((m) => m.name === it.name)?.price || 0) * it.qty;
-            return `<div class="row"><span>${it.name} (${it.temp === "HOT" ? "Hot" : "Ice"}) x${it.qty}</span><span>$${price}</span></div>`;
-          })
+          .map(
+            (it) =>
+              `<div class="row"><span>${it.name} (${it.temp === "HOT" ? "Hot" : "Ice"}) x${it.qty}</span><span>$${unitPrice(it) * it.qty}</span></div>`
+          )
           .join("");
 
         return `
           <div class="history-item" data-id="${h.id}">
-            <button type="button" class="history-summary">
-              <span class="history-summary-left">
-                <span class="history-item-no">#${h.id}</span>
-                <span class="history-status ${statusClass(status)}">${STATUS_LABEL[status] || status}</span>
-              </span>
-              <span class="history-summary-right">
-                <span class="history-amount">$${h.total}</span>
-                <span>${h.pickup_time}</span>
-                <span class="history-chevron">▼</span>
-              </span>
-            </button>
+            <div class="history-row">
+              <button type="button" class="history-summary">
+                <span class="history-summary-left">
+                  <span class="history-item-no">#${h.id}</span>
+                  <span class="history-status ${statusClass(status)}">${STATUS_LABEL[status] || status}</span>
+                </span>
+                <span class="history-summary-right">
+                  <span class="history-amount">$${h.total}</span>
+                  <span>${h.pickup_time}</span>
+                  <span class="history-chevron">▼</span>
+                </span>
+              </button>
+              <button type="button" class="history-x" data-id="${h.id}" aria-label="#${h.id} 내역에서 지우기">✕</button>
+            </div>
             <div class="history-detail" hidden>
               ${itemRows}
               <div class="row"><span>주문 시각</span><span>${formatTime(h.created_at)}</span></div>
-              <button type="button" class="history-delete-btn" data-id="${h.id}">내역에서 지우기</button>
             </div>
           </div>
         `;
@@ -677,7 +687,7 @@
       });
     });
 
-    listEl.querySelectorAll(".history-delete-btn").forEach((btn) => {
+    listEl.querySelectorAll(".history-x").forEach((btn) => {
       btn.addEventListener("click", () => removeHistoryEntry(Number(btn.dataset.id)));
     });
 
@@ -727,10 +737,13 @@
       nameInput.classList.remove("invalid");
     }
 
+    // 주문 당시 가격을 함께 저장합니다. 나중에 메뉴 가격을 바꿔도
+    // 지난 매출이 새 가격으로 다시 계산되지 않게 하기 위함입니다.
     const items = MENU.filter((m) => itemState[m.id].qty > 0).map((m) => ({
       name: m.name,
       temp: itemState[m.id].temp,
       qty: itemState[m.id].qty,
+      price: m.price,
     }));
 
     if (items.length === 0) {
