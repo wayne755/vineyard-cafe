@@ -81,7 +81,8 @@
     color: var(--sage-dark);
   }
 
-  .summary-card.ready .num { color: var(--amber); }
+  /* 픽업 시간이 된 주문이 남아 있을 때만 붉게 강조합니다. */
+  .summary-card.urgent .num { color: var(--error); }
 
   .summary-card .label {
     font-size: 13px;
@@ -128,7 +129,11 @@
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     padding: 18px 20px;
+    border-left: 5px solid transparent;
   }
+
+  /* 픽업 시간이 지난 주문 */
+  .order-card.due { border-left-color: var(--error); }
 
   .order-card-head {
     display: flex;
@@ -166,6 +171,8 @@
     font-weight: 700;
     color: var(--brown);
   }
+
+  .order-meta .elapsed.overdue { color: var(--error); }
 
   .order-items {
     display: flex;
@@ -351,9 +358,9 @@
       <div class="num" id="waiting-count">0</div>
       <div class="label">대기중</div>
     </div>
-    <div class="summary-card ready">
-      <div class="num" id="done-count">0</div>
-      <div class="label">준비완료</div>
+    <div class="summary-card" id="due-card">
+      <div class="num" id="due-count">0</div>
+      <div class="label">지금 나갈 것</div>
     </div>
   </div>
 
@@ -638,10 +645,36 @@
     }
   }
 
+  // 픽업 시간("12:45")을 자정 기준 분으로. "예배 직후"처럼 시각이 아닌 옛 값은 -1(가장 먼저).
+  function pickupMinutes(order) {
+    const match = /^(\d{1,2}):(\d{2})$/.exec((order.pickup_time || "").trim());
+    if (!match) return -1;
+    return Number(match[1]) * 60 + Number(match[2]);
+  }
+
+  function nowMinutes() {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }
+
+  function isPickupDue(order) {
+    const mins = pickupMinutes(order);
+    return mins < 0 || nowMinutes() >= mins;
+  }
+
+  // 빨리 나가야 하는 순서대로. 같은 시간대면 주문번호 순(먼저 주문한 사람 먼저).
+  const byPickup = (a, b) => pickupMinutes(a) - pickupMinutes(b) || a.id - b.id;
+
   // ---- 렌더링 ----
-  function elapsedLabel(createdAt) {
-    const mins = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000));
-    return mins < 1 ? "방금" : `${mins}분 전`;
+  // 미리 주문받는 방식이라 "주문한 지 몇 분"보다 "픽업 시간까지 몇 분"이 실제로 쓸모 있습니다.
+  function pickupLabel(order) {
+    const mins = pickupMinutes(order);
+    if (mins < 0) return "지금";
+
+    const diff = nowMinutes() - mins;
+    if (diff >= 1) return `${diff}분 지남`;
+    if (diff >= 0) return "지금";
+    return `${-diff}분 후`;
   }
 
   function render() {
@@ -649,11 +682,13 @@
     const waiting = orders.filter((o) => o.status !== "done");
     const done = orders.filter((o) => o.status === "done");
 
+    const due = waiting.filter(isPickupDue);
     document.getElementById("waiting-count").textContent = waiting.length;
-    document.getElementById("done-count").textContent = done.length;
+    document.getElementById("due-count").textContent = due.length;
+    document.getElementById("due-card").classList.toggle("urgent", due.length > 0);
 
     renderBatch(waiting);
-    renderList(waiting);
+    renderList([...waiting].sort(byPickup));
     renderDone(done.filter((o) => !dismissedIds.has(o.id)));
   }
 
@@ -699,8 +734,10 @@
           .map((it) => `<span class="order-item-chip">${it.name} ${TEMP_LABEL[it.temp] || it.temp} x${it.qty}</span>`)
           .join("");
 
+        const due = isPickupDue(o);
+
         return `
-          <div class="order-card">
+          <div class="order-card${due ? " due" : ""}">
             <div class="order-card-head">
               <div>
                 <div class="order-no">#${o.id}</div>
@@ -709,7 +746,7 @@
               <div class="order-meta">
                 <div class="order-amount">$${orderTotal(o)}</div>
                 <div>픽업 ${escapeHtml(o.pickup_time)}</div>
-                <div class="elapsed">${elapsedLabel(o.created_at)}</div>
+                <div class="elapsed${due ? " overdue" : ""}">${pickupLabel(o)}</div>
               </div>
             </div>
             <div class="order-items">${itemsHtml}</div>
